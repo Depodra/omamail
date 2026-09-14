@@ -868,9 +868,10 @@ Item {
     var keptError = String(preservedError || "")
     abortRequest(listHandle)
     if (!append) {
-      // Cache first: paint, then revalidate; tokens and the estimate come back
-      // with the live answer. An action that interrupted the prior load has the
-      // newest optimistic state on screen and must not re-import a removed row.
+      // Cache first: paint, then revalidate. The page tokens and the estimate
+      // come back with the live answer. An action that interrupted the prior
+      // load already has the newest optimistic state on screen and must not
+      // re-import the removed row from another cached query.
       if (skipCache !== true && !paintFromCache()) {
         nextPageToken = ""
         resultEstimate = 0
@@ -906,9 +907,11 @@ Item {
           if (!append) {
             root.messages = []
             root.loadedDepth = 0
-            // An empty answer is an answer, and it has to reach the cache: a
-            // mailbox that had emptied kept its old rows on disk, and cache-first
-            // painted them on every visit until the live load wiped them again.
+            // An empty answer is an answer, and it has to reach the cache. Only
+            // a non-empty result was ever written back, so a mailbox that had
+            // emptied kept its old rows on disk — and cache-first painted them
+            // again on every visit before the live load wiped them a moment
+            // later. Reading mail elsewhere made Unread do exactly that.
             cacheStore.putQuery(root.cacheKey, ({
               summaries: [],
               estimate: root.resultEstimate,
@@ -2510,6 +2513,7 @@ Item {
     pendingActionQuery = ""
     if (auth) auth.logout()
     messages = []
+    loadedDepth = 0
     labels = []
     sendAsAliases = []
     sendAsLoading = false
@@ -2860,9 +2864,9 @@ Item {
     repeat: true
     triggeredOnStart: true
     onTriggered: {
-      // Every account polls its count, which feeds the badge and the
-      // notification. An open window reloads its list too, at the depth it
-      // had been paged to.
+      // Every account polls its count, and refreshCounts loads the list for any
+      // mailbox whose count has risen — that is what feeds the badge and the
+      // notification. An open window keeps its own list current regardless.
       root.refreshCounts()
       if (root.active && root.windowOpen) root.loadMessages(false)
     }
