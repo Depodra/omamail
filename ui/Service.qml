@@ -1539,40 +1539,36 @@ Item {
     searching: searchQuery !== "" || rawQuery !== "", mailboxes: mailboxes,
     conversations: !!reading && reading.showsConversations
   })
-  function threadKey(source) {
-    var thread = source ? source.thread : null
-    return (thread && thread.id ? String(thread.id) : "") + "\n" + String(source ? source.mailboxKey : "")
-  }
   // A new projection is asked for; until it lands, the one in hand stays up
-  // when it is about the same thread in the same mailbox. Blanking it drew the
-  // rail to nothing and reflowed the reader on every member merge, mark-read
-  // and list refresh that opening a thread brings — several times per open.
-  // Only the navigation goes, so a stale next or previous cannot be followed
-  // in the meantime; a late reply is refused by the serial below regardless.
-  // A different thread starts from nothing, as before: its stops are not
-  // this one's.
-  function scheduleConversationProjection() {
+  // when it is about the same thread in the same mailbox (`Model.pendingProjection`).
+  // Blanking it drew the rail to nothing and reflowed the reader on every
+  // member merge, mark-read and list refresh that opening a thread brings —
+  // several times per open. `sourceText` is the source already serialised by
+  // the caller, when it has it.
+  function scheduleConversationProjection(sourceText) {
     conversationProjectionSerial++
     var source = conversationSource
-    var thread = threadKey(source)
-    var kept = thread === projectedThread && conversationProjection
-    projectedSource = JSON.stringify(source)
+    var thread = Model.projectionKey(source)
+    var sameThread = thread === projectedThread
+    projectedSource = sourceText || JSON.stringify(source)
     projectedThread = thread
-    conversationProjection = kept
-      ? Object.assign({}, conversationProjection, { navigation: {} })
-      : ({ showsRail: false, stops: [], caption: "", navigation: {}, memberIds: [] })
+    conversationProjection = Model.pendingProjection(conversationProjection, sameThread)
     conversationProjectionTimer.restart()
   }
   Timer { id: conversationProjectionTimer; interval: 0; onTriggered: root.refreshConversationProjection() }
   onConversationSourceChanged: {
-    if (JSON.stringify(conversationSource) === projectedSource) return
-    scheduleConversationProjection()
+    var text = JSON.stringify(conversationSource)
+    if (text === projectedSource) return
+    scheduleConversationProjection(text)
   }
   function refreshConversationProjection() {
     if (!backend || !backend.ready) return
     var serial = conversationProjectionSerial
     backend.call("account.conversation", conversationSource, function(result, error) {
-      if (!root || serial !== root.conversationProjectionSerial || error || !result) return
+      if (!root || serial !== root.conversationProjectionSerial) return
+      // A failed ask leaves the source unanswered: forget it was asked, so
+      // the next change of the same source asks again.
+      if (error || !result) { root.projectedSource = ""; return }
       root.conversationProjection = result
     })
   }
