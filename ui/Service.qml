@@ -1524,19 +1524,50 @@ Item {
   readonly property string viewedMailboxKey: String(conversationProjection.viewedMailboxKey || "")
   property var conversationProjection: ({ showsRail: false, stops: [], caption: "", navigation: {}, memberIds: [] })
   property int conversationProjectionSerial: 0
+  // What the projection in hand was asked about: the source as text, and the
+  // thread and mailbox it names. The source is an object literal, so it is a
+  // new object — and `conversationSourceChanged` fires — whenever any input
+  // is reassigned, whether or not anything in it is different. In All
+  // mailboxes that is constant: the composed thread and members are built
+  // afresh on every read, and the mailbox list is a new array on every
+  // snapshot. Compared as text, an unchanged source asks nothing.
+  property string projectedSource: ""
+  property string projectedThread: ""
   readonly property var conversationSource: ({
     operation: "project", thread: selectedThread, summaries: memberSummaries,
     selectedId: selectedId, mailboxKey: mailboxKey,
     searching: searchQuery !== "" || rawQuery !== "", mailboxes: mailboxes,
     conversations: !!reading && reading.showsConversations
   })
+  function threadKey(source) {
+    var thread = source ? source.thread : null
+    return (thread && thread.id ? String(thread.id) : "") + "\n" + String(source ? source.mailboxKey : "")
+  }
+  // A new projection is asked for; until it lands, the one in hand stays up
+  // when it is about the same thread in the same mailbox. Blanking it drew the
+  // rail to nothing and reflowed the reader on every member merge, mark-read
+  // and list refresh that opening a thread brings — several times per open.
+  // Only the navigation goes, so a stale next or previous cannot be followed
+  // in the meantime; a late reply is refused by the serial below regardless.
+  // A different thread starts from nothing, as before: its stops are not
+  // this one's.
   function scheduleConversationProjection() {
     conversationProjectionSerial++
-    conversationProjection = ({ showsRail: false, stops: [], caption: "", navigation: {}, memberIds: [] })
+    var source = conversationSource
+    var thread = threadKey(source)
+    var kept = thread === projectedThread && conversationProjection
+    projectedSource = JSON.stringify(source)
+    projectedThread = thread
+    conversationProjection = kept
+      ? Object.assign({}, conversationProjection, { navigation: {} })
+      : ({ showsRail: false, stops: [], caption: "", navigation: {}, memberIds: [] })
     conversationProjectionTimer.restart()
   }
   Timer { id: conversationProjectionTimer; interval: 0; onTriggered: root.refreshConversationProjection() }
-  onConversationSourceChanged: scheduleConversationProjection()
+  onConversationSourceChanged: {
+    if (JSON.stringify(conversationSource) === projectedSource) return
+    scheduleConversationProjection()
+  }
   function refreshConversationProjection() {
     if (!backend || !backend.ready) return
     var serial = conversationProjectionSerial
