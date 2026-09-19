@@ -66,13 +66,14 @@ Item {
     }
     // The rail stays up while the same thread is projected again: a member
     // merge, a mark-read or a list refresh asks for a fresh projection, and
-    // the one in hand is drawn until it lands. Only its navigation goes.
+    // the one in hand is drawn until it lands. Only the ways along it go: the
+    // navigation, and the ends `n` and `p` fall back to without it.
     function test_same_thread_keeps_the_rail_while_a_projection_is_in_flight() {
       service.projectedRail = "never"
       service.scheduleConversationProjection()
       tryVerify(function() { return pending("account.conversation").length === 1 })
       var landed = { showsRail: true, stops: [{id:"a"},{id:"b"}], caption: "2 messages",
-        navigation: { a: {previous:"",next:"b",neighbor:"b"} }, memberIds: ["a","b"] }
+        navigation: { a: {previous:"",next:"b",neighbor:"b"} }, memberIds: ["a","b"], first: "b", last: "a" }
       BackendFixture.respond(service, pending("account.conversation")[0], landed)
       tryCompare(service, "conversationProjection", landed)
       service.scheduleConversationProjection()
@@ -81,6 +82,8 @@ Item {
       compare(service.conversationProjection.caption, "2 messages")
       compare(Object.keys(service.conversationProjection.navigation).length, 0,
         "but a stale next or previous cannot be followed")
+      compare(String(service.conversationProjection.first || ""), "", "nor an end jumped to")
+      compare(String(service.conversationProjection.last || ""), "")
       tryVerify(function() { return pending("account.conversation").length === 2 })
       BackendFixture.respond(service, pending("account.conversation")[1], landed)
       tryCompare(service, "conversationProjection", landed)

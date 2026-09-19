@@ -1400,13 +1400,19 @@ function projectionKey(source) {
 
 // What the reader draws while a new projection is in flight. About the same
 // rail, the one in hand stays up — its stops and its caption — and only the
-// navigation goes, so a stale next or previous cannot be followed before the
-// answer lands. About a different rail, nothing: its stops are not this one's.
-var BLANK_PROJECTION = { showsRail: false, stops: [], caption: "", navigation: {}, memberIds: [] }
+// ways along it go: the navigation, and the first and last stop that `n` and
+// `p` fall back to when the open message has no entry there. So a stale next
+// or previous cannot be followed before the answer lands, and neither can an
+// end be jumped to. About a different rail, nothing: its stops are not this
+// one's. A blank is built afresh each time, lists included, so nothing drawn
+// from one can reach into another.
+function blankProjection() {
+  return { showsRail: false, stops: [], caption: "", navigation: {}, memberIds: [] }
+}
 
 function pendingProjection(projection, sameRail) {
-  if (!sameRail || !projection || typeof projection !== "object") return Object.assign({}, BLANK_PROJECTION)
-  return Object.assign({}, projection, { navigation: {} })
+  if (!sameRail || !projection || typeof projection !== "object") return blankProjection()
+  return Object.assign({}, projection, { navigation: {}, first: "", last: "" })
 }
 
 function resultSummary(list, estimate, hasMore) {
