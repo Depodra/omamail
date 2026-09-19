@@ -1290,21 +1290,12 @@ function newArrivals(summaries, seenIds, primed, floorMs) {
   return arrivals
 }
 
-// The desktop notification spec says a body may carry a small markup subset,
-// and the daemons that implement it read one out of whatever they are handed.
-// A subject is a stranger's sentence, so its angle brackets are its own — and
-// an <img> left in one is a fetch made by the notification rather than by the
-// reader, which is the same beacon by a different door.
-//
-// A leading "-" is stripped for a different reason: these values become
-// arguments to notify-send, and one that starts with a dash is read as an
-// option there.
+// This is the canonical plain text handed to every platform. A platform whose
+// notification API accepts markup escapes at that final boundary; doing it
+// here would make native notification centres show the entities themselves.
+// A leading dash remains harmless behind notify-send's `--` separator.
 function notificationText(value) {
   return String(value === undefined || value === null ? "" : value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/^[-\s]+/, "")
 }
 
 function notificationTitle(summary) {
@@ -1361,6 +1352,30 @@ function listNoun(list) {
 function badgeCount(summary) {
   var block = Conversation.blockOf(summary ? summary.thread : null)
   return block && block.count >= Conversation.MINIMUM_MEMBERS ? block.count : 0
+}
+
+// ------------------------------------------------------------ reload depth
+
+// How many rows a reload asks for.
+//
+// Load more extends a list a page at a time, and everything that reloads the
+// list — the poll, F5, a push, the revalidation after an action — used to ask
+// for page one again and replace the whole list with the answer, so the rows
+// the user had paged down to vanished under them the moment any of those ran.
+// Opening an unread message was enough: its quiet mark-read is a write, the
+// server pushes the change, and the push is a reload.
+//
+// So a reload asks for as many rows as the view had reached, and the answer
+// replaces the list at that depth. Bounded, because IMAP answers at most a
+// hundred rows in one window and a reload should never cost more than the
+// user's own paging did.
+var RELOAD_CEILING = 100
+
+function reloadLimit(pageSize, loadedDepth) {
+  var page = Math.max(1, Math.floor(Number(pageSize)) || 1)
+  var depth = Math.floor(Number(loadedDepth)) || 0
+  if (depth <= page) return page
+  return Math.min(Math.max(page, RELOAD_CEILING), depth)
 }
 
 // ---------------------------------------------------- conversation projection

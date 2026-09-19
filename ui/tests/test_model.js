@@ -577,18 +577,17 @@ assert.strictEqual(model.truncate("a much longer string", 10), "a much lo…")
 assert.strictEqual(model.pluralize(1, "message"), "1 message")
 assert.strictEqual(model.pluralize(0, "message"), "0 messages")
 
-// A notification is markup to the daemons that draw it, and its two strings are
-// arguments to notify-send. Neither is a place for a sender's angle brackets or
-// for a display name that starts with a dash.
+// Model output is canonical plain text. Platform adapters escape only when
+// their final notification boundary accepts markup.
 {
   const crafted = {
     subject: "<img src=\"http://tracker.example.com/p.gif\">",
     snippet: "a & b",
     from: { display: "-u critical" }
   }
-  assert.ok(model.notificationBody(crafted).indexOf("<img") < 0)
-  assert.ok(model.notificationBody(crafted).indexOf("&amp;") > 0)
-  assert.strictEqual(model.notificationTitle(crafted), "u critical")
+  assert.ok(model.notificationBody(crafted).indexOf("<img") >= 0)
+  assert.ok(model.notificationBody(crafted).indexOf("a & b") >= 0)
+  assert.strictEqual(model.notificationTitle(crafted), "-u critical")
   assert.strictEqual(model.notificationTitle({ from: { display: "" } }), "New message")
   assert.strictEqual(model.notificationTitle(null), "New message")
 }
@@ -1481,6 +1480,23 @@ const deep = { id: "m", a: { b: { c: { d: { e: 1 } } } } }
 const alsoDeep = { id: "m", a: { b: { c: { d: { e: 1 } } } } }
 assert.strictEqual(model.sameSummaries([deep], [alsoDeep]), false,
   "the comparison stops rather than following an unbounded structure")
+
+// ------------------------------------------------------------ reload depth
+
+// A first load is a page. A reload of a list Load more has extended asks for
+// the rows the view reached, so the answer replaces it at that depth rather
+// than at page one — which is what a poll, a push or F5 used to do.
+assert.strictEqual(model.reloadLimit(25, 0), 25)
+assert.strictEqual(model.reloadLimit(25, 25), 25)
+assert.strictEqual(model.reloadLimit(25, 50), 50, "two pages in, two pages back")
+assert.strictEqual(model.reloadLimit(25, 63), 63,
+  "rows trashed since do not round the depth down to a page")
+assert.strictEqual(model.reloadLimit(50, 150), 100, "bounded by the IMAP window")
+assert.strictEqual(model.reloadLimit(100, 300), 100)
+assert.strictEqual(model.reloadLimit(25, -5), 25)
+assert.strictEqual(model.reloadLimit(25, "nonsense"), 25)
+assert.strictEqual(model.reloadLimit(0, 40), 40, "a page of nothing still asks for what was shown")
+assert.strictEqual(model.reloadLimit(null, null), 1)
 
 // ---------------------------------------------------- conversation projection
 
