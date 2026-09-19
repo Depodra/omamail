@@ -49,7 +49,7 @@ Item {
       service.conversationProjection = { showsRail: true, stops: [{id:"old"}], navigation: { old: {next:"other"} } }
       // Nothing has been projected yet, so what is in hand is not this
       // source's and goes.
-      service.projectedThread = "never"
+      service.projectedRail = "never"
       service.scheduleConversationProjection()
       compare(service.conversationProjection.showsRail, false)
       compare(Object.keys(service.conversationProjection.navigation).length, 0)
@@ -68,7 +68,7 @@ Item {
     // merge, a mark-read or a list refresh asks for a fresh projection, and
     // the one in hand is drawn until it lands. Only its navigation goes.
     function test_same_thread_keeps_the_rail_while_a_projection_is_in_flight() {
-      service.projectedThread = "never"
+      service.projectedRail = "never"
       service.scheduleConversationProjection()
       tryVerify(function() { return pending("account.conversation").length === 1 })
       var landed = { showsRail: true, stops: [{id:"a"},{id:"b"}], caption: "2 messages",
@@ -89,7 +89,7 @@ Item {
     // with nothing different in it, which is what every unified snapshot and
     // composed thread produces — asks for nothing.
     function test_an_unchanged_source_does_not_ask_again() {
-      service.projectedThread = "never"
+      service.projectedRail = "never"
       service.scheduleConversationProjection()
       tryVerify(function() { return pending("account.conversation").length === 1 })
       service.conversationSourceChanged()

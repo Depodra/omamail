@@ -1783,22 +1783,29 @@ Item {
   property var conversationProjection: ({ showsRail: false, stops: [], caption: "", navigation: {}, memberIds: [] })
   property int conversationProjectionSerial: 0
   // What the projection in hand was asked about: the source as text, and the
-  // thread and mailbox it names. The source is an object literal, so it is a
-  // new object — and `conversationSourceChanged` fires — whenever any input
-  // is reassigned, whether or not anything in it is different. In All
-  // mailboxes that is constant: the composed thread and members are built
-  // afresh on every read, and the mailbox list is a new array on every
-  // snapshot. Compared as text, an unchanged source asks nothing.
+  // account, thread and mailbox it names (`Model.projectionKey`). The source
+  // is an object literal, so it is a new object — and
+  // `conversationSourceChanged` fires — whenever any input is reassigned,
+  // whether or not anything in it is different. In All mailboxes that is
+  // constant: the composed thread and members are built afresh on every
+  // read, and the mailbox list is a new array on every snapshot. Compared as
+  // text, an unchanged source asks nothing.
   property string projectedSource: ""
-  property string projectedThread: ""
+  property string projectedRail: ""
   readonly property var conversationSource: ({
     operation: "project", thread: selectedThread, summaries: memberSummaries,
     selectedId: selectedId, mailboxKey: mailboxKey,
     searching: searchQuery !== "" || rawQuery !== "", mailboxes: mailboxes,
-    conversations: !!reading && reading.showsConversations
+    conversations: !!reading && reading.showsConversations,
+    // Whose thread it is. The projection does not need it — a thread's members
+    // are composed with their account on the way out — but the key that decides
+    // whether the rail in hand is this source's does: All mailboxes leaves
+    // `thread.id` as the provider gave it, so two accounts can each hold a `t1`.
+    accountId: reading ? String(reading.accountId || "") : ""
   })
   // A new projection is asked for; until it lands, the one in hand stays up
-  // when it is about the same thread in the same mailbox (`Model.pendingProjection`).
+  // when it is about the same rail — the same thread, in the same mailbox, of
+  // the same account (`Model.pendingProjection`).
   // Blanking it drew the rail to nothing and reflowed the reader on every
   // member merge, mark-read and list refresh that opening a thread brings —
   // several times per open. `sourceText` is the source already serialised by
@@ -1806,11 +1813,11 @@ Item {
   function scheduleConversationProjection(sourceText) {
     conversationProjectionSerial++
     var source = conversationSource
-    var thread = Model.projectionKey(source)
-    var sameThread = thread === projectedThread
+    var rail = Model.projectionKey(source)
+    var sameRail = rail === projectedRail
     projectedSource = sourceText || JSON.stringify(source)
-    projectedThread = thread
-    conversationProjection = Model.pendingProjection(conversationProjection, sameThread)
+    projectedRail = rail
+    conversationProjection = Model.pendingProjection(conversationProjection, sameRail)
     conversationProjectionTimer.restart()
   }
   Timer { id: conversationProjectionTimer; interval: 0; onTriggered: root.refreshConversationProjection() }

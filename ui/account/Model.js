@@ -1380,25 +1380,32 @@ function reloadLimit(pageSize, loadedDepth) {
 
 // ---------------------------------------------------- conversation projection
 
-// The thread a projection source is about, in the mailbox it is viewed from,
-// as one key. The source names a thread when the reader is inside one; two
-// sources with the same key are asking about the same rail.
+// The rail a projection source is about, as one key: the account that holds
+// the thread, the thread's id, and the mailbox it is viewed from. The source
+// names a thread when the reader is inside one; two sources with the same key
+// are asking about the same rail.
+//
+// The account is part of it because a thread id is the provider's, not the
+// world's. All mailboxes composes a message id with its account on the way
+// out and leaves `thread.id` as it came, so two accounts can each hold a
+// thread called `t1` in their Inbox — and a reader moving from one to the
+// other is moving between two rails, not asking again about one. The parts
+// are JSON-encoded so no id can run into the next.
 function projectionKey(source) {
-  var thread = source && typeof source === "object" ? source.thread : null
+  var fields = source && typeof source === "object" ? source : ({})
+  var thread = fields.thread
   var id = thread && typeof thread === "object" && thread.id ? String(thread.id) : ""
-  var mailbox = source && typeof source === "object" ? String(source.mailboxKey || "") : ""
-  return id + "\n" + mailbox
+  return JSON.stringify([String(fields.accountId || ""), id, String(fields.mailboxKey || "")])
 }
 
 // What the reader draws while a new projection is in flight. About the same
-// thread, the one in hand stays up — the rail, its stops and its caption —
-// and only the navigation goes, so a stale next or previous cannot be
-// followed before the answer lands. About a different thread, nothing: its
-// stops are not this one's.
+// rail, the one in hand stays up — its stops and its caption — and only the
+// navigation goes, so a stale next or previous cannot be followed before the
+// answer lands. About a different rail, nothing: its stops are not this one's.
 var BLANK_PROJECTION = { showsRail: false, stops: [], caption: "", navigation: {}, memberIds: [] }
 
-function pendingProjection(projection, sameThread) {
-  if (!sameThread || !projection || typeof projection !== "object") return Object.assign({}, BLANK_PROJECTION)
+function pendingProjection(projection, sameRail) {
+  if (!sameRail || !projection || typeof projection !== "object") return Object.assign({}, BLANK_PROJECTION)
   return Object.assign({}, projection, { navigation: {} })
 }
 

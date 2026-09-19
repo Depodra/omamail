@@ -1500,13 +1500,29 @@ assert.strictEqual(model.reloadLimit(null, null), 1)
 
 // ---------------------------------------------------- conversation projection
 
-assert.strictEqual(model.projectionKey({ thread: { id: "t1" }, mailboxKey: "inbox" }), "t1\ninbox")
-assert.strictEqual(model.projectionKey({ thread: { id: "t1" }, mailboxKey: "archive" }), "t1\narchive",
+const adaT1 = { accountId: "ada@example.org", thread: { id: "t1" }, mailboxKey: "inbox" }
+assert.strictEqual(model.projectionKey(adaT1), JSON.stringify(["ada@example.org", "t1", "inbox"]))
+assert.strictEqual(model.projectionKey({ accountId: "ada@example.org", thread: { id: "t1" }, mailboxKey: "archive" }),
+  JSON.stringify(["ada@example.org", "t1", "archive"]),
   "the same thread viewed from another mailbox is another rail")
-assert.strictEqual(model.projectionKey({ thread: null, mailboxKey: "inbox" }), "\ninbox",
+// All mailboxes leaves a thread's id as its provider gave it, so two accounts
+// in one merged view can each hold a `t1` in their Inbox. A reader moving from
+// one to the other is moving between two rails, and the key says so.
+const bobT1 = { accountId: "bob@example.net", thread: { id: "t1" }, mailboxKey: "inbox" }
+assert.strictEqual(model.projectionKey(bobT1), JSON.stringify(["bob@example.net", "t1", "inbox"]))
+assert.notStrictEqual(model.projectionKey(adaT1), model.projectionKey(bobT1),
+  "the same thread id in another account is another rail")
+assert.notStrictEqual(model.projectionKey({ accountId: "a", thread: { id: "b\nc" }, mailboxKey: "d" }),
+  model.projectionKey({ accountId: "a\nb", thread: { id: "c" }, mailboxKey: "d" }),
+  "and no id can run into the part beside it, whatever characters it carries")
+assert.strictEqual(model.projectionKey({ accountId: "ada@example.org", thread: null, mailboxKey: "inbox" }),
+  JSON.stringify(["ada@example.org", "", "inbox"]),
   "a message outside any thread has no thread in its key")
-assert.strictEqual(model.projectionKey(null), "\n")
-assert.strictEqual(model.projectionKey({ thread: "t1" }), "\n", "a thread that is not an object names nothing")
+assert.strictEqual(model.projectionKey({ thread: { id: "t1" }, mailboxKey: "inbox" }),
+  JSON.stringify(["", "t1", "inbox"]), "a source naming no account is keyed without one")
+assert.strictEqual(model.projectionKey(null), JSON.stringify(["", "", ""]))
+assert.strictEqual(model.projectionKey({ accountId: "ada@example.org", thread: "t1" }),
+  JSON.stringify(["ada@example.org", "", ""]), "a thread that is not an object names nothing")
 
 const drawn = { showsRail: true, stops: [{ id: "a" }, { id: "b" }], caption: "2 messages",
   navigation: { a: { next: "b" } }, memberIds: ["a", "b"] }
